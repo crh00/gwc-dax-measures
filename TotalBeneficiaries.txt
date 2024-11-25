@@ -1,0 +1,54 @@
+TotalBeneficiaries = 
+// Step 1: Create a grouped table to calculate the monthly sum of beneficiaries for each unique combination
+VAR GroupedTable = 
+    SUMMARIZE(
+        'WASH 5W Dataset',
+        'WASH 5W Dataset'[Sub-region],                   -- Group by Sub-region
+        'WASH 5W Dataset'[Intervention / Emergency Type], -- Group by Intervention / Emergency Type
+        'WASH 5W Dataset'[WASH Domain],                  -- Group by WASH Domain
+        'WASH 5W Dataset'[Activity],                     -- Group by Activity
+        'WASH 5W Dataset'[Reporting Date],               -- Group by Reporting Date (monthly granularity)
+        "MonthlySum", SUM('WASH 5W Dataset'[Total Beneficiaries]) -- Calculate the total beneficiaries for each group
+    )
+
+// Step 2: For each month and its group (by Sub-region, Intervention Type, WASH Domain), find the max activity
+VAR MaxPerMonth =
+    ADDCOLUMNS(
+        SUMMARIZE(
+            GroupedTable,
+            'WASH 5W Dataset'[Sub-region],                   -- Group by Sub-region
+            'WASH 5W Dataset'[Intervention / Emergency Type], -- Group by Intervention / Emergency Type
+            'WASH 5W Dataset'[WASH Domain],                  -- Group by WASH Domain
+            'WASH 5W Dataset'[Reporting Date]                -- Group by Reporting Date
+        ),
+        "MaxActivitySum", MAXX(                             -- Add a column to find the maximum MonthlySum for each group
+            FILTER(
+                GroupedTable,
+                'WASH 5W Dataset'[Sub-region] = EARLIER('WASH 5W Dataset'[Sub-region]) &&
+                'WASH 5W Dataset'[Intervention / Emergency Type] = EARLIER('WASH 5W Dataset'[Intervention / Emergency Type]) &&
+                'WASH 5W Dataset'[WASH Domain] = EARLIER('WASH 5W Dataset'[WASH Domain]) &&
+                'WASH 5W Dataset'[Reporting Date] = EARLIER('WASH 5W Dataset'[Reporting Date])
+            ),
+            [MonthlySum]                                    -- Select the maximum MonthlySum within each filtered group
+        )
+    )
+
+// Step 3: Calculate the sum of the maximum activity values for all groups
+VAR SumOfMaxActivity = 
+    SUMX(MaxPerMonth, [MaxActivitySum])                     -- Sum the MaxActivitySum values across all groups
+
+// Step 4: Find the maximum activity sum for specific conditions
+VAR FilteredMax = 
+    MAXX(
+        FILTER(
+            MaxPerMonth,
+            'WASH 5W Dataset'[Intervention / Emergency Type] = "IDP" &&      -- Only include rows where Intervention Type is "IDP"
+            ('WASH 5W Dataset'[WASH Domain] = "Water" ||                    -- And WASH Domain is either "Water" or "Hygiene"
+             'WASH 5W Dataset'[WASH Domain] = "Hygiene")
+        ),
+        [MaxActivitySum]                                                   -- Get the maximum value of MaxActivitySum for the filtered rows
+    )
+
+// Step 5: Return the total as the sum of the maximum activity values and the filtered maximum value
+RETURN
+    SumOfMaxActivity + FilteredMax
