@@ -1,4 +1,4 @@
-TotalBeneficiaries = 
+TotalBeneficiaries = //EDITED FILE
 // Step 1: Create a grouped table to calculate the monthly sum of beneficiaries for each unique combination
 VAR GroupedTable = 
     SUMMARIZE(
